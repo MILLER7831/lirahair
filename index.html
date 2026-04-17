@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="theme-color" content="#f9f3f0">
+  <title>LIRA — студия красоты</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* Все стили остаются те же, что и в предыдущей версии */
+    /* Добавляем только стили для уведомления об обновлении */
+    .update-notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(165, 131, 110, 0.9);
+      backdrop-filter: blur(8px);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 40px;
+      font-size: 0.9rem;
+      z-index: 100;
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .update-notification.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    .update-notification i {
+      margin-right: 8px;
+    }
+    
+    .loading-placeholder {
+      text-align: center;
+      padding: 2rem;
+      color: #5c4a3e;
+    }
+    
+    /* Индикатор загрузки */
+    .loading-spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(165, 131, 110, 0.2);
+      border-radius: 50%;
+      border-top-color: #a5836e;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Декоративные пятна -->
+  <div class="bg-blur-1"></div>
+  <div class="bg-blur-2"></div>
+  <div class="bg-blur-3"></div>
+
+  <!-- Уведомление об обновлении -->
+  <div class="update-notification" id="updateNotification" onclick="location.reload()">
+    <i class="fas fa-sync-alt"></i> Обновление доступно
+  </div>
+
+  <!-- Главная панель LIRA -->
+  <div class="glass-panel">
+    <div class="header">
+      <div class="logo">
+        <h1>LIRA</h1>
+        <span>hair & soul</span>
+      </div>
+      <div class="header-actions">
+        <button class="glass-btn" id="callBtnHeader">
+          <i class="fas fa-phone-alt"></i> 
+          <span id="headerPhone">+7 (999) 123-45-67</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="services-grid">
+      <!-- Левая часть: услуги (динамически) -->
+      <div>
+        <div class="section-title">услуги</div>
+        <div class="service-list" id="servicesContainer">
+          <div class="loading-placeholder">
+            <div class="loading-spinner"></div>
+            <p style="margin-top: 1rem;">Загрузка услуг...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Правая часть -->
+      <div class="right-showcase">
+        <div class="glass-quote">
+          <i class="fas fa-feather-alt"></i>
+          <p>«Каждая линия ножниц — как нота. В LIRA мы создаём гармонию»</p>
+          <div class="author">— команда LIRA</div>
+        </div>
+        
+        <div class="booking-area">
+          <button class="btn-book" id="bookNowBtn">
+            <i class="far fa-calendar-check"></i> Записаться
+            <i class="fas fa-chevron-right"></i>
+          </button>
+          <p style="color: #4b3a2f; padding-left: 12px; font-weight: 300;">
+            <i class="far fa-clock"></i> <span id="workingHours">ежедневно 10:00 – 21:00</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Секция мастеров (динамически) -->
+    <div class="masters-section">
+      <div class="masters-title">наши мастера</div>
+      <div class="masters-grid" id="mastersContainer">
+        <div class="loading-placeholder" style="grid-column: 1/-1;">
+          <div class="loading-spinner"></div>
+          <p style="margin-top: 1rem;">Загрузка мастеров...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      <span id="footerAddress">ул. Лирная, 15 • м. Цветной бульвар</span>
+    </div>
+  </div>
+
+  <!-- Модальные окна (остаются без изменений) -->
+  <!-- ... -->
+
+  <script>
+    (function(){
+      "use strict";
+
+      // ========== КОНФИГУРАЦИЯ ==========
+      const CONFIG_URL = './config.json';
+      const TELEGRAM_BOT_TOKEN = '8355468547:AAEwUM4XlSaC2sfTIL6_qY6p9ajFf5TgVtY';
+      const TELEGRAM_CHAT_ID = '6379395346';
+      const UPDATE_CHECK_INTERVAL = 30000; // 30 секунд
+      
+      // Глобальное хранилище данных
+      let salonConfig = {
+        services: [],
+        masters: [],
+        settings: {}
+      };
+      
+      let lastUpdateTime = null;
+      let currentService = { title: 'Консультация', price: '' };
+
+      // ========== ЗАГРУЗКА КОНФИГУРАЦИИ ==========
+      async function loadConfig() {
+        try {
+          const response = await fetch(`${CONFIG_URL}?t=${Date.now()}`);
+          if (!response.ok) throw new Error('Ошибка загрузки конфигурации');
+          
+          const config = await response.json();
+          salonConfig = config;
+          lastUpdateTime = config.lastUpdated || Date.now();
+          
+          renderServices();
+          renderMasters();
+          updateSettings();
+          
+          console.log('✅ Конфигурация загружена');
+        } catch (error) {
+          console.error('❌ Ошибка загрузки:', error);
+          // Загружаем данные по умолчанию
+          loadDefaultConfig();
+        }
+      }
+      
+      // Данные по умолчанию
+      function loadDefaultConfig() {
+        salonConfig = {
+          services: [
+            { id: 'haircut', name: 'Стрижка + укладка', description: 'Модельная форма, текстура, стайлинг', price: 2900, duration: '≈ 1 час 10 мин', fullDescription: 'Модельная стрижка с учетом формы лица и структуры волос. Включает мытьё, консультацию, стрижку горячими ножницами (по желанию) и укладку стайлингом.', active: true },
+            { id: 'coloring', name: 'Окрашивание Airtouch', description: 'Сложное окрашивание, тон-в-тон', price: 7500, duration: '≈ 3 – 4 часа', fullDescription: 'Техника airtouch создает мягкие, плавные переходы цвета. Используются премиум-красители.', active: true },
+            { id: 'keratin', name: 'Кератиновое восстановление', description: 'Глубокое питание, блеск и гладкость', price: 4900, duration: '≈ 2 – 2.5 часа', fullDescription: 'Глубокое восстановление структуры волос. Состав на основе кератина заполняет повреждения.', active: true },
+            { id: 'styling', name: 'Beauty вечерняя укладка', description: 'Локоны, волны, голливудский стиль', price: 2100, duration: '≈ 45 – 60 мин', fullDescription: 'Голливудские локоны, гладкие волны или объёмная укладка.', active: true },
+            { id: 'bang', name: 'Стрижка челки / коррекция', description: 'Быстрое обновление образа', price: 900, duration: '≈ 15 – 20 мин', fullDescription: 'Быстрая коррекция формы челки или её создание.', active: true }
+          ],
+          masters: [
+            { id: 'anna', name: 'Анна Ветрова', specialty: 'колорист-стилист', photo: 'https://images.unsplash.com/photo-1494790108755-2616b89633e6?w=300&h=300&fit=crop', active: true },
+            { id: 'elena', name: 'Елена Соболева', specialty: 'мастер стрижек', photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop', active: true },
+            { id: 'maxim', name: 'Максим Орлов', specialty: 'топ-стилист', photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=300&fit=crop', active: true },
+            { id: 'sofia', name: 'София Райн', specialty: 'кератин / уход', photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=300&fit=crop', active: true }
+          ],
+          settings: {
+            phone: '+7 (999) 123-45-67',
+            workingHours: 'ежедневно 10:00 – 21:00',
+            address: 'ул. Лирная, 15 • м. Цветной бульвар',
+            salonName: 'LIRA',
+            subtitle: 'hair & soul'
+          }
+        };
+        
+        renderServices();
+        renderMasters();
+        updateSettings();
+      }
+      
+      // ========== ОТРИСОВКА УСЛУГ ==========
+      function renderServices() {
+        const container = document.getElementById('servicesContainer');
+        const activeServices = salonConfig.services.filter(s => s.active !== false);
+        
+        if (activeServices.length === 0) {
+          container.innerHTML = '<p style="text-align:center;padding:2rem;">Нет активных услуг</p>';
+          return;
+        }
+        
+        container.innerHTML = activeServices.map(service => `
+          <div class="service-item" data-service-id="${service.id}">
+            <div class="service-info">
+              <h3>${service.name}</h3>
+              <div class="service-desc">${service.description}</div>
+            </div>
+            <div class="service-price">${service.price} <small>₽</small></div>
+          </div>
+        `).join('');
+        
+        // Привязываем обработчики
+        document.querySelectorAll('.service-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const serviceId = item.dataset.serviceId;
+            const service = salonConfig.services.find(s => s.id === serviceId);
+            if (service) {
+              showServiceModal(service);
+            }
+          });
+        });
+      }
+      
+      // ========== ОТРИСОВКА МАСТЕРОВ ==========
+      function renderMasters() {
+        const container = document.getElementById('mastersContainer');
+        const activeMasters = salonConfig.masters.filter(m => m.active !== false);
+        
+        if (activeMasters.length === 0) {
+          container.innerHTML = '<p style="text-align:center;padding:2rem;grid-column:1/-1;">Нет активных мастеров</p>';
+          return;
+        }
+        
+        container.innerHTML = activeMasters.map(master => `
+          <div class="master-card">
+            <img class="master-photo" src="${master.photo}" alt="${master.name}" loading="lazy">
+            <div class="master-name">${master.name}</div>
+            <div class="master-spec">${master.specialty}</div>
+          </div>
+        `).join('');
+      }
+      
+      // ========== ОБНОВЛЕНИЕ НАСТРОЕК ==========
+      function updateSettings() {
+        const settings = salonConfig.settings;
+        
+        document.getElementById('headerPhone').textContent = settings.phone;
+        document.getElementById('workingHours').textContent = settings.workingHours;
+        document.getElementById('footerAddress').textContent = settings.address;
+        
+        // Обновляем логотип
+        const logoSubtitle = document.querySelector('.logo span');
+        if (logoSubtitle) {
+          logoSubtitle.textContent = settings.subtitle;
+        }
+      }
+      
+      // ========== ПОКАЗ МОДАЛКИ УСЛУГИ ==========
+      function showServiceModal(service) {
+        currentService = {
+          title: service.name,
+          price: service.price + ' ₽'
+        };
+        
+        document.getElementById('serviceModalTitle').textContent = service.name;
+        document.getElementById('serviceModalDesc').textContent = service.fullDescription;
+        document.getElementById('serviceModalTime').innerHTML = `<i class="far fa-clock"></i> ${service.duration}`;
+        
+        openModal(document.getElementById('serviceModal'));
+      }
+      
+      // ========== ПРОВЕРКА ОБНОВЛЕНИЙ ==========
+      async function checkForUpdates() {
+        try {
+          const response = await fetch(`${CONFIG_URL}?t=${Date.now()}`);
+          const config = await response.json();
+          
+          if (config.lastUpdated && config.lastUpdated > lastUpdateTime) {
+            document.getElementById('updateNotification').classList.add('show');
+          }
+        } catch (error) {
+          console.log('Проверка обновлений:', error.message);
+        }
+      }
+      
+      // ========== ОТПРАВКА В TELEGRAM ==========
+      async function sendToTelegram(name, phone, service) {
+        const message = `🦊 *НОВАЯ ЗАПИСЬ | LIRA*%0A━━━━━━━━━━━━━━━━━━%0A👤 *Клиент:* ${name}%0A📞 *Телефон:* ${phone}%0A💇‍♀️ *Услуга:* ${service}%0A━━━━━━━━━━━━━━━━━━%0A🕐 *Время:* ${new Date().toLocaleString('ru-RU')}`;
+
+        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${message}&parse_mode=Markdown`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (!data.ok) throw new Error(data.description);
+        return data;
+      }
+      
+      // ========== ИНИЦИАЛИЗАЦИЯ ==========
+      document.addEventListener('DOMContentLoaded', () => {
+        loadConfig();
+        
+        // Проверка обновлений
+        setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+        
+        // Остальные обработчики (модалки, формы и т.д.)
+        initializeEventHandlers();
+      });
+      
+      function initializeEventHandlers() {
+        // Кнопка "Записаться"
+        document.getElementById('bookNowBtn').addEventListener('click', () => {
+          openModal(document.getElementById('bookingModal'));
+        });
+        
+        // Форма записи
+        document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          
+          const name = document.getElementById('clientName').value.trim();
+          let phone = document.getElementById('clientPhone').value.trim();
+          const service = document.getElementById('selectedService').value || 'Не указана';
+          
+          if (!name || !phone) {
+            showStatus('❌ Заполните все поля', 'error');
+            return;
+          }
+          
+          phone = phone.replace(/\D/g, '');
+          if (phone.length < 10) {
+            showStatus('❌ Неверный номер телефона', 'error');
+            return;
+          }
+          
+          const submitBtn = document.getElementById('submitBookingBtn');
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+          
+          try {
+            await sendToTelegram(name, phone, service);
+            showStatus('✅ Заявка отправлена! Скоро свяжемся с вами.', 'success');
+            
+            document.getElementById('clientName').value = '';
+            document.getElementById('clientPhone').value = '';
+            
+            setTimeout(() => {
+              closeModal(document.getElementById('bookingModal'));
+            }, 2000);
+          } catch (error) {
+            showStatus(`❌ Ошибка: ${error.message}`, 'error');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fab fa-telegram-plane"></i> Отправить заявку';
+          }
+        });
+        
+        // ... остальные обработчики (закрытие модалок, маска телефона и т.д.)
+      }
+      
+      function showStatus(message, className) {
+        const status = document.getElementById('formStatus');
+        status.textContent = message;
+        status.className = `status-message ${className}`;
+      }
+      
+      function openModal(modal) { 
+        modal.classList.add('active'); 
+        document.body.style.overflow = 'hidden';
+      }
+      
+      function closeModal(modal) { 
+        modal.classList.remove('active'); 
+        document.body.style.overflow = '';
+      }
+      
+    })();
+  </script>
+</body>
+</html>

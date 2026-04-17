@@ -1,0 +1,30 @@
+{
+  "services": [
+    {
+      "id": "haircut",
+      "name": "Стрижка + укладка",
+      "description": "Модельная форма, текстура, стайлинг",
+      "price": 2900,
+      "duration": "≈ 1 час 10 мин",
+      "fullDescription": "Модельная стрижка с учетом формы лица и структуры волос. Включает мытьё, консультацию, стрижку горячими ножницами (по желанию) и укладку стайлингом.",
+      "active": true
+    }
+  ],
+  "masters": [
+    {
+      "id": "anna",
+      "name": "Анна Ветрова",
+      "specialty": "колорист-стилист",
+      "photo": "https://images.unsplash.com/photo-1494790108755-2616b89633e6?w=300&h=300&fit=crop",
+      "active": true
+    }
+  ],
+  "settings": {
+    "salonName": "LIRA",
+    "subtitle": "hair & soul",
+    "phone": "+7 (999) 123-45-67",
+    "workingHours": "ежедневно 10:00 – 21:00",
+    "address": "ул. Лирная, 15 • м. Цветной бульвар"
+  },
+  "lastUpdated": 1700000000000
+}
